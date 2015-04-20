@@ -1,0 +1,6 @@
+if `clang ./main.c`
+then 
+	./a.out;
+else
+	echo "failed"
+fi
