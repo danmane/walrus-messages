@@ -18,6 +18,7 @@ away, even if the buffer was full). The producer must never block.
 */
 
 #define BUFFER_SIZE 4
+#define FINAL_MESSAGE 10
 
 struct message {
 	int content;
@@ -29,17 +30,18 @@ struct message buffer[BUFFER_SIZE];
 
 
 void producer() {
-	int pos = 0;
+	int pos = BUFFER_SIZE - 1;
 	buffer[pos].locked = 1;
 	int i;
-	for (i=0; i<10; i++) {
+	for (i=0; i<=FINAL_MESSAGE; i++) {
 		int next = pos;
 		next = (next + 1) % BUFFER_SIZE;
-		// while (1) {
-		// 	if (!OSAtomicTestAndSet(1, &(buffer[next].locked))) {
-		// 		break;
-		// 	}
-		// }
+		while (1) {
+			if (!OSAtomicTestAndSet(1, &(buffer[next].locked))) {
+				break;
+			}
+			printf(">>%d is locked; continuing\n", next);
+		}
 		printf("at i=%d, %d -> %d\n", next, buffer[next].content, i);
 		buffer[next].content = i;
 		buffer[pos].locked = 0;
@@ -48,6 +50,24 @@ void producer() {
 	buffer[pos].locked = 0;
 	for (i=0; i<BUFFER_SIZE; i++) {
 		printf("\t%d:%d\n", i, buffer[i].content);
+	}
+}
+
+void consumer() {
+	int pos = 0;
+	while (1) {
+		while (1) {
+			pos = (pos + 1) % BUFFER_SIZE;
+			if (!OSAtomicTestAndSet(1, &(buffer[pos].locked))) {
+				break;
+			}
+			printf(">>%d is locked; continuing\n", pos);
+		}
+		printf("read: buffer[%d]=%d\n", pos, buffer[pos].content);
+		buffer[pos].locked = 0;
+		if (buffer[pos].content == FINAL_MESSAGE)  {
+			break;
+		}
 	}
 }
 
@@ -67,24 +87,17 @@ void printBuffer() {
 
 int main() {
 	int i;
-	printf("allocated buffer, have done nothing with it");
 	printBuffer();
 
-	printf("assignment sequence 1");
 	for (i=0; i<BUFFER_SIZE; i++) {
-		buffer[i].content = 99;
-
+		buffer[i].content = -1;
+		buffer[i].locked = 0;
 	}
-	printBuffer();
 
 
-	printf("assignment sequence 2");
-	for (i=0; i<BUFFER_SIZE; i++) {
-		struct message* m = &buffer[i];
-		m->content = 100;
-	}
 	printBuffer();
-	// producer();
+	producer();
+	consumer();
 }
 
 // void consumer() {
