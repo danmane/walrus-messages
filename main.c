@@ -18,8 +18,8 @@ away, even if the buffer was full). The producer must never block.
 */
 
 #define BUFFER_SIZE 8
-#define FINAL_MESSAGE 500
-#define SLOWDOWN -500
+#define FINAL_MESSAGE 50000
+#define SLOWDOWN -5000
 
 struct message {
 	int content;
@@ -37,19 +37,22 @@ void slowdown(int n) {
 	}
 }
 
-void printBuffer(char *prefix) {
+void printBuffer() {
+	char str[100] = "[";
+	char next[100];
 	int i;
-	printf("%s", prefix);
-	printf("[");
 	for (i=0; i<BUFFER_SIZE; i++) {
 		struct message m = buffer[i];
 		if (m.locked == 1) {
-			printf("X,");
+			strcat(str, "X,");
+			// printf("X,");
 		} else {
-			printf("%d,", m.content);
+			sprintf(next, "%d,", m.content % 100);
+			strcat(str, next);
 		}
 	}
-	printf("]\n");
+	strcat(str, "]\n");
+	printf(str);
 }
 
 void *producer(void *_) {
@@ -66,7 +69,7 @@ void *producer(void *_) {
 			}
 			// printf(">>>>:  r%d is locked; continuing\n", next);
 		}
-		// printf(">>>>: at i=%d, %d -> %d\n", next, buffer[next].content, i);
+		printf(">>>>: at i=%d, %d -> %d\n", next, buffer[next].content % 100, i % 100);
 		if (die_immediately) {
 			return NULL;
 		}
@@ -94,15 +97,15 @@ void *consumer(void *_) {
 			}
 			// printf("C: %d is locked; continuing\n", pos);
 		}
-		// printf("C: buffer[%d]=%d\n", pos, buffer[pos].content);
+		// printf("C: buffer[%d]=%d\n", pos, buffer[pos].content % 100);
 		val = buffer[pos].content;
 		if (val != -1) {
 			if (val <= lastVal) {
 				die_immediately = 1;
-				printf("ERROR: read buffer[%d]: %d <= lastVal %d\n", pos, val, lastVal);
+				printf("ERROR: read buffer[%d]: %d <= lastVal %d\n", pos, val % 100, lastVal % 100);
 				printBuffer("");
 			} else {
-				printf("Read buffer[%d]: %d\n", pos, val);
+				printf("Read buffer[%d]: %d\n", pos, val % 100);
 				printBuffer("");
 				numRead++;
 			}
