@@ -1,4 +1,4 @@
-if `clang ./main.c`
+if `clang ./main.c -Wall`
 then 
 	./a.out;
 else

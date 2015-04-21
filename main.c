@@ -34,7 +34,7 @@ read old messages out-of-order. As a consequence, any messages to the right of t
 producer has locked are unreachable and will be lost. (Nb - this approach needs amendment when there are 
 multiple producers or consumers.)
 
-Currently this program sends FINAL_MESSAGE + 1 messages through the producer, to the buffer, and to the 
+Currently this program sends NUM_MESSAGES messages through the producer, to the buffer, and to the 
 consumer. The consumer reports an error and kills the program if it detects that it has received messages
 out of order, which indicates a serious failure by the program. At the end, it prints how many messages
 it successfully read.
@@ -49,15 +49,21 @@ of uniform)
 
 */
 
-#define BUFFER_SIZE 1000
-#define FINAL_MESSAGE 500000
-#define PRODUCER_SLOWDOWN 200
-#define CONSUMER_SLOWDOWN 200
+#define BUFFER_SIZE 500
+#define NUM_MESSAGES 500000
+#define PRODUCER_SLOWDOWN 100
+#define CONSUMER_SLOWDOWN 0
+
+#define NUM_CONSUMERS 1
+#define NUM_PRODUCERS 1
+
+
 
 struct message {
 	int content;
 	uint32_t locked; 
 };
+
 
 int die_immediately=0;
 struct message buffer[BUFFER_SIZE];
@@ -95,8 +101,7 @@ void *producer(void *_) {
 	int pos = BUFFER_SIZE - 1;
 	buffer[pos].locked = 1;
 	int i;
-	for (i=0; i<=FINAL_MESSAGE; i++) {
-		slowdown(PRODUCER_SLOWDOWN);
+	for (i=0; i<NUM_MESSAGES; i++) {
 		int next = pos;
 		next = (next + 1) % BUFFER_SIZE;
 		while (1) {
@@ -109,6 +114,7 @@ void *producer(void *_) {
 		if (die_immediately) {
 			return NULL;
 		}
+		slowdown(PRODUCER_SLOWDOWN);
 		buffer[next].content = i;
 		buffer[pos].locked = 0;
 		pos = next;
@@ -124,7 +130,6 @@ void *consumer(void *_) {
 	int numRead = 0;
 	int lastVal = -1;
 	while (1) {
-		slowdown(CONSUMER_SLOWDOWN);
 		while (1) {
 			pos = (pos + 1) % BUFFER_SIZE;
 			// printf("C: pos=%d\n", pos);
@@ -151,16 +156,16 @@ void *consumer(void *_) {
 			lastVal = val;
 
 		}
+		slowdown(CONSUMER_SLOWDOWN);
 		buffer[pos].locked = 0;
 		buffer[pos].content = -1;
-		if (val == FINAL_MESSAGE || die_immediately)  {
+		if (val == NUM_MESSAGES-1 || die_immediately)  {
 			printf("numRead: %d\n", numRead);
 			break;
 		}
 	}
 	return NULL;
 }
-
 
 int main() {
 	int i;
