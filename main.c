@@ -103,9 +103,7 @@ void *producer(void *_) {
 			if (!OSAtomicTestAndSet(1, &(buffer[next].locked))) {
 				break;
 			}
-			// printf(">>>>:  r%d is locked; continuing\n", next);
 		}
-		// printf(">>>>: at i=%d, %d -> %d\n", next, buffer[next].content % 100, i % 100);
 		if (die_immediately) {
 			return NULL;
 		}
@@ -127,16 +125,12 @@ void *consumer(void *_) {
 		slowdown(CONSUMER_SLOWDOWN);
 		while (1) {
 			pos = (pos + 1) % BUFFER_SIZE;
-			// printf("C: pos=%d\n", pos);
 			if (!OSAtomicTestAndSet(1, &(buffer[pos].locked))) {
-				// printf("C: %d is available; continuing\n", pos);
 				break;
 			} else {
-				// printf("C: %d is locked, retrying\n", pos);
 				pos = (pos + BUFFER_SIZE - 2) % BUFFER_SIZE;
 			}
 		}
-		// printf("C: buffer[%d]=%d\n", pos, buffer[pos].content % 100);
 		val = buffer[pos].content;
 		if (val != -1) {
 			if (val <= lastVal) {
@@ -144,8 +138,6 @@ void *consumer(void *_) {
 				printf("ERROR: read buffer[%d]: %d <= lastVal %d\n", pos, val % 100, lastVal % 100);
 				printBuffer();
 			} else {
-				// printf("Read buffer[%d]: %d\n", pos, val % 100);
-				// printBuffer("");
 				numRead++;
 			}
 			lastVal = val;
