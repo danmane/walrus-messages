@@ -50,9 +50,9 @@ of uniform)
 */
 
 #define BUFFER_SIZE 500
-#define NUM_MESSAGES 500000
-#define PRODUCER_SLOWDOWN 100
-#define CONSUMER_SLOWDOWN 0
+#define NUM_MESSAGES 1000000
+#define PRODUCER_SLOWDOWN 0
+#define CONSUMER_SLOWDOWN 200
 
 #define NUM_CONSUMERS 1
 #define NUM_PRODUCERS 1
@@ -103,8 +103,8 @@ void *producer(void *_) {
 	int i;
 	for (i=0; i<NUM_MESSAGES; i++) {
 		int next = pos;
-		next = (next + 1) % BUFFER_SIZE;
 		while (1) {
+			next = (next + 1) % BUFFER_SIZE;
 			if (!OSAtomicTestAndSet(1, &(buffer[next].locked))) {
 				break;
 			}
