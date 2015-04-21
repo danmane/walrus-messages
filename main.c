@@ -51,8 +51,8 @@ of uniform)
 
 #define BUFFER_SIZE 500
 #define NUM_MESSAGES 1000000
-#define PRODUCER_SLOWDOWN 0
-#define CONSUMER_SLOWDOWN 200
+#define PRODUCER_SLOWDOWN 100
+#define CONSUMER_SLOWDOWN 0
 
 #define NUM_CONSUMERS 1
 #define NUM_PRODUCERS 1
@@ -60,14 +60,18 @@ of uniform)
 
 
 struct message {
-	int content;
+	int32_t content;
 	uint32_t locked; 
 };
+
+int32_t message_num = 0;
 
 
 int die_immediately=0;
 struct message buffer[BUFFER_SIZE];
 pthread_t consumer_thread, producer_thread;
+
+pthread_t producers[NUM_PRODUCERS];
 
 void slowdown(int n) {
 	int target = (int) (drand48() * n);
@@ -97,19 +101,40 @@ void printBuffer() {
 	printf("%s",str);
 }
 
-void *producer(void *_) {
-	int pos = BUFFER_SIZE - 1;
-	buffer[pos].locked = 1;
-	int i;
-	for (i=0; i<NUM_MESSAGES; i++) {
-		int next = pos;
-		while (1) {
-			next = (next + 1) % BUFFER_SIZE;
-			if (!OSAtomicTestAndSet(1, &(buffer[next].locked))) {
-				break;
-			}
-			// printf(">>>>:  r%d is locked; continuing\n", next);
+/* 
+ * Keep searching forward from `pos` until we find an unlocked cell, then lock it and return its position
+ */
+int find_unlocked_cell(int pos) {
+	while(1) {
+		pos = (pos + 1) % BUFFER_SIZE;
+		if (!OSAtomicTestAndSet(0, &(buffer[pos].locked))) {
+			return pos;
 		}
+	}
+}
+
+/* 
+ * If the next cell is unlocked, lock it and return its position.
+ * If not, backtrack one step and try again.
+ * This is used by consumers to ensure that the consumer stays behind the
+ * leading edge of producer-writes, so that it is impossible to read messages out-of-order.
+ */
+int cautiously_find_unlocked_cell(int pos) {
+	int next = (pos + 1) % BUFFER_SIZE;
+	while(1) {
+		if (!OSAtomicTestAndSet(0, &(buffer[next].locked))) {
+			return next;
+		}
+		next = (next - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+	}
+}
+
+void *producer(void *_) {
+	// acquire initial lock, to maintain the invariant that we always have a lock
+	int pos = find_unlocked_cell(0);
+	int32_t i;
+	while ((i=OSAtomicIncrement32Barrier(&message_num)) <= NUM_MESSAGES) {
+		int next = find_unlocked_cell(pos);
 		// printf(">>>>: at i=%d, %d -> %d\n", next, buffer[next].content % 100, i % 100);
 		if (die_immediately) {
 			return NULL;
@@ -126,22 +151,11 @@ void *producer(void *_) {
 
 void *consumer(void *_) {
 	int pos = 0;
-	int val;
 	int numRead = 0;
-	int lastVal = -1;
+	int32_t val;
+	int32_t lastVal = -1;
 	while (1) {
-		while (1) {
-			pos = (pos + 1) % BUFFER_SIZE;
-			// printf("C: pos=%d\n", pos);
-			if (!OSAtomicTestAndSet(1, &(buffer[pos].locked))) {
-				// printf("C: %d is available; continuing\n", pos);
-				break;
-			} else {
-				// printf("C: %d is locked, retrying\n", pos);
-				pos = (pos + BUFFER_SIZE - 2) % BUFFER_SIZE;
-			}
-		}
-		// printf("C: buffer[%d]=%d\n", pos, buffer[pos].content % 100);
+		pos = cautiously_find_unlocked_cell(pos);
 		val = buffer[pos].content;
 		if (val != -1) {
 			if (val <= lastVal) {
@@ -157,9 +171,9 @@ void *consumer(void *_) {
 
 		}
 		slowdown(CONSUMER_SLOWDOWN);
-		buffer[pos].locked = 0;
 		buffer[pos].content = -1;
-		if (val == NUM_MESSAGES-1 || die_immediately)  {
+		buffer[pos].locked = 0;
+		if (val == NUM_MESSAGES || die_immediately)  {
 			printf("numRead: %d\n", numRead);
 			break;
 		}
