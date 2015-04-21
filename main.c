@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <libkern/OSAtomic.h>
+#include <string.h>
 
 /*
 Spec for v0 of walrus-messenger:
@@ -17,9 +18,9 @@ away, even if the buffer was full). The producer must never block.
 
 */
 
-#define BUFFER_SIZE 8
-#define FINAL_MESSAGE 50000
-#define SLOWDOWN -5000
+#define BUFFER_SIZE 1000
+#define FINAL_MESSAGE 500000
+#define SLOWDOWN 0
 
 struct message {
 	int content;
@@ -52,7 +53,7 @@ void printBuffer() {
 		}
 	}
 	strcat(str, "]\n");
-	printf(str);
+	printf("%s",str);
 }
 
 void *producer(void *_) {
@@ -69,7 +70,7 @@ void *producer(void *_) {
 			}
 			// printf(">>>>:  r%d is locked; continuing\n", next);
 		}
-		printf(">>>>: at i=%d, %d -> %d\n", next, buffer[next].content % 100, i % 100);
+		// printf(">>>>: at i=%d, %d -> %d\n", next, buffer[next].content % 100, i % 100);
 		if (die_immediately) {
 			return NULL;
 		}
@@ -92,10 +93,14 @@ void *consumer(void *_) {
 		slowdown(-SLOWDOWN);
 		while (1) {
 			pos = (pos + 1) % BUFFER_SIZE;
+			// printf("C: pos=%d\n", pos);
 			if (!OSAtomicTestAndSet(1, &(buffer[pos].locked))) {
+				// printf("C: %d is available; continuing\n", pos);
 				break;
+			} else {
+				// printf("C: %d is locked, retrying\n", pos);
+				pos = (pos + BUFFER_SIZE - 2) % BUFFER_SIZE;
 			}
-			// printf("C: %d is locked; continuing\n", pos);
 		}
 		// printf("C: buffer[%d]=%d\n", pos, buffer[pos].content % 100);
 		val = buffer[pos].content;
@@ -103,10 +108,10 @@ void *consumer(void *_) {
 			if (val <= lastVal) {
 				die_immediately = 1;
 				printf("ERROR: read buffer[%d]: %d <= lastVal %d\n", pos, val % 100, lastVal % 100);
-				printBuffer("");
+				printBuffer();
 			} else {
-				printf("Read buffer[%d]: %d\n", pos, val % 100);
-				printBuffer("");
+				// printf("Read buffer[%d]: %d\n", pos, val % 100);
+				// printBuffer("");
 				numRead++;
 			}
 			lastVal = val;
