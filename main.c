@@ -55,7 +55,7 @@ of uniform)
 #define CONSUMER_SLOWDOWN 0
 
 #define NUM_CONSUMERS 1
-#define NUM_PRODUCERS 1
+#define NUM_PRODUCERS 2
 
 
 
@@ -195,13 +195,23 @@ int main() {
 		return 2;
 	}
 
-	if(pthread_create(&producer_thread, NULL, producer, NULL)) {
-		fprintf(stderr, "Error creating producer thread\n");
-		return 1;
+	for (i=0; i<NUM_PRODUCERS; i++) {
+		if(pthread_create(&producers[i], NULL, producer, NULL)) {
+			fprintf(stderr, "Error creating producer thread\n");
+			return 1;
+		}
 	}
-	if(pthread_join(consumer_thread, NULL) || pthread_join(producer_thread, NULL)) {
-		fprintf(stderr, "Error joining threads\n");
-		return 3;
+
+	for (i=0; i<NUM_PRODUCERS; i++) {
+		if(pthread_join(producers[i], NULL)) {
+		fprintf(stderr, "Error joining producer thread\n");
+			return 3;
+		}
+	}
+
+	if(pthread_join(consumer_thread, NULL)) {
+		fprintf(stderr, "Error joining consumer thread\n");
+		return 4;
 	}
 	return 0;
 }
