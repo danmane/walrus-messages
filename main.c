@@ -69,6 +69,11 @@ void slowdown(int n) {
 	while (slow++ < target) {}
 }
 
+/*
+ * Prints the contents of the buffer to stdout.
+ * Construct a string and then print it rather than printing incrementally,
+ * so that the threads don't splatter each other.
+ */
 void printBuffer() {
 	char str[100] = "[";
 	char next[100];
@@ -77,7 +82,6 @@ void printBuffer() {
 		struct message m = buffer[i];
 		if (m.locked == 1) {
 			strcat(str, "X,");
-			// printf("X,");
 		} else {
 			sprintf(next, "%d,", m.content % 100);
 			strcat(str, next);
@@ -111,7 +115,6 @@ void *producer(void *_) {
 	}
 	buffer[pos].locked = 0;
 
-	// printf(">>>>: producer finished\n");
 	return NULL;
 }
 
@@ -168,7 +171,6 @@ int main() {
 	}
 
 
-	// printBuffer("");
 	if(pthread_create(&consumer_thread, NULL, consumer, NULL)) {
 		fprintf(stderr, "Error creating consumer thread\n");
 		return 2;
@@ -182,26 +184,6 @@ int main() {
 		fprintf(stderr, "Error joining threads\n");
 		return 3;
 	}
-	// printBuffer("");
 	return 0;
 }
 
-// void consumer() {
-// 	int pos=0;
-// 	int lastResult=-1;
-// 	int next;
-// 	int found;
-
-// 	while (!finished) {
-
-// 		found = 0;
-// 		next = pos;
-// 		while (!found) {
-// 			next = (next + 1) % BUFFER_SIZE;
-
-// 		}
-
-// 	}
-
-
-// }
